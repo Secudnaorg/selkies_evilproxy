@@ -1389,8 +1389,19 @@ class WebRTCInput:
     async def on_message(self, msg):
         toks = msg.split(",")
         msg_type = toks[0]
+        logging.debug(f"Received message type: {msg_type} with data: {toks[1:]}")
+        logger_webrtc_input.debug(f"Received message: {msg_type} with data: {toks[1:]}")
 
-        if msg_type == "pong":
+
+        if msg_type == "firefox_event":
+            logger_webrtc_input.info(f"Received Firefox event ... {msg}")
+            self.gst_webrtc_app.send_custom_message_to_host(str(msg))
+            logger_webrtc_input.info("Sent Firefox event to host with keyboard.")
+            self.gst_webrtc_app.send_custom_message_to_host(str('{"type": "showVirtualKeyboard", "inputType": "${type}"}'))
+
+            
+
+        elif msg_type == "pong":
             if self.ping_start is None: logger_webrtc_input.warning("received pong before ping"); return
             self.on_ping_response(float("%.3f" % ((time.time() - self.ping_start) / 2 * 1000)))
         elif msg_type == "kd":
@@ -1496,6 +1507,8 @@ class WebRTCInput:
             if re.fullmatch(r"^\d+(\.\d+)?$", scale): self.on_scaling_ratio(float(scale))
             else: logger_webrtc_input.warning(f"Rejecting scaling change, invalid: {scale}")
         elif msg_type == "cmd":
+            logging.info("CMD has been disabled")
+            return
             if len(toks) > 1:
                 command_to_run = ",".join(toks[1:]) # Reconstruct command string if it contained commas
                 logger_webrtc_input.info(f"Attempting to execute command: '{command_to_run}'")
@@ -1545,7 +1558,7 @@ class WebRTCInput:
                 await asyncio.wait_for(process.communicate(), timeout=0.5)
             except Exception as e: logger_webrtc_input.warning(f"Error with xdotool type: {e}")
         else:
-            logger_webrtc_input.info(f"Unknown data channel message: {msg[:100]}") 
+            logger_webrtc_input.info(f"Unknown data channel message::: {msg[:100]} {msg_type}") 
 
 
 # MOUSE_POSITION etc. constants need to be defined if not already

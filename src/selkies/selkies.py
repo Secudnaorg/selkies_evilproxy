@@ -17,6 +17,7 @@ TARGET_FRAMERATE = 60
 TARGET_VIDEO_BITRATE_KBPS = 16000
 MIN_VIDEO_BITRATE_KBPS = 500
 
+DATA_WEBSOCKET_PORT = 8082
 UINPUT_MOUSE_SOCKET = ""
 JS_SOCKET_PATH = "/tmp"
 ENABLE_CLIPBOARD = True
@@ -171,6 +172,34 @@ class SelkiesStreamingApp:
         else:
             data_logger.warning(
                 "Cannot broadcast clipboard data: no clients connected or server not ready."
+            )
+
+
+
+    def send_custom_message_to_host(
+        self, data
+    ):
+        if (
+            self.data_streaming_server
+            and hasattr(self.data_streaming_server, "clients")
+            and self.data_streaming_server.clients
+            and self.async_event_loop
+            and self.async_event_loop.is_running()
+        ):
+
+            msg_to_broadcast = str(data)
+            clients_ref = self.data_streaming_server.clients
+            logging.info(f"Broadcasting message to host: {self.data_streaming_server.clients}")
+
+            async def _broadcast_message_host_helper():
+                websockets.broadcast(clients_ref, msg_to_broadcast)
+
+            asyncio.run_coroutine_threadsafe(
+                _broadcast_message_host_helper(), self.async_event_loop
+            )
+        else:
+            data_logger.warning(
+                "Cannot broadcast message to host data: no clients connected or server not ready."
             )
 
     def send_ws_cursor_data(self, data):
@@ -3267,12 +3296,6 @@ async def main():
         type=int,
         help="Watermark location enum (0-6). Defaults to 4 (Bottom Right) if path is set and this is not specified or invalid.",
     )
-    parser.add_argument(
-        "--port",
-        default=os.environ.get("CUSTOM_WS_PORT", "8082"),
-        type=int,
-        help="The port for the data websocket server. Overrides the CUSTOM_WS_PORT environment variable.",
-    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args, unknown = parser.parse_known_args()
     global TARGET_FRAMERATE, TARGET_VIDEO_BITRATE_KBPS
@@ -3309,7 +3332,7 @@ async def main():
     )
 
     data_server = DataStreamingServer(
-        port=args.port,
+        port=DATA_WEBSOCKET_PORT,
         app=app,
         uinput_mouse_socket=UINPUT_MOUSE_SOCKET,
         js_socket_path=JS_SOCKET_PATH,
